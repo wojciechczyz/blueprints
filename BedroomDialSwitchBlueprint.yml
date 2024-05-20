@@ -1,0 +1,121 @@
+blueprint:
+  name: Multi-Function Light Controller
+  description: Control one bedroom light and a group of living room lights with various actions.
+  domain: automation
+  input:
+    bedroom_light:
+      name: Bedroom Light
+      description: The light entity to control in the bedroom.
+      selector:
+        entity:
+          domain: light
+    living_room_lights:
+      name: Living Room Lights Group
+      description: The light group entity to control in the living room.
+      selector:
+        entity:
+          domain: light
+    controller:
+      name: Controller
+      description: The Zigbee2MQTT controller device.
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: IKEA
+          model: E1744
+  trigger:
+    - platform: device
+      device_id: !input controller
+      type: action
+      subtype: button_1_single
+    - platform: device
+      device_id: !input controller
+      type: action
+      subtype: button_1_double
+    - platform: device
+      device_id: !input controller
+      type: action
+      subtype: button_4_double
+    - platform: device
+      device_id: !input controller
+      type: action
+      subtype: rotate_left
+    - platform: device
+      device_id: !input controller
+      type: action
+      subtype: rotate_right
+  action:
+    - variables:
+        bedroom_light: !input bedroom_light
+        living_room_lights: !input living_room_lights
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: button_1_single
+          sequence:
+            - service: light.toggle
+              target:
+                entity_id: !input bedroom_light
+        - conditions:
+            - condition: trigger
+              id: rotate_left
+          sequence:
+            - service: light.turn_on
+              target:
+                entity_id: !input bedroom_light
+              data:
+                brightness_step_pct: -10
+        - conditions:
+            - condition: trigger
+              id: rotate_right
+          sequence:
+            - service: light.turn_on
+              target:
+                entity_id: !input bedroom_light
+              data:
+                brightness_step_pct: 10
+        - conditions:
+            - condition: trigger
+              id: button_1_double
+          sequence:
+            - wait_for_trigger:
+                platform: device
+                device_id: !input controller
+                type: action
+                subtype: rotate_left
+              timeout: 5
+              continue_on_timeout: false
+            - service: light.turn_on
+              target:
+                entity_id: !input bedroom_light
+              data:
+                kelvin: >
+                  {% set current_kelvin = state_attr(bedroom_light, 'color_temp_kelvin') %}
+                  {% set new_kelvin = (current_kelvin - 100) | max(2700) %}
+                  {{ new_kelvin }}
+        - conditions:
+            - condition: trigger
+              id: button_1_double
+          sequence:
+            - wait_for_trigger:
+                platform: device
+                device_id: !input controller
+                type: action
+                subtype: rotate_right
+              timeout: 5
+              continue_on_timeout: false
+            - service: light.turn_on
+              target:
+                entity_id: !input bedroom_light
+              data:
+                kelvin: >
+                  {% set current_kelvin = state_attr(bedroom_light, 'color_temp_kelvin') %}
+                  {% set new_kelvin = (current_kelvin + 100) | min(6500) %}
+                  {{ new_kelvin }}
+        - conditions:
+            - condition: trigger
+              id: button_4_double
+          sequence:
+            - service: light.toggle
+              target:
+                entity_id: !input living_room_lights
